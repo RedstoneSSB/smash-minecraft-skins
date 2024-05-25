@@ -31,8 +31,7 @@ percent-encoding = "=2.1.0"
 color-thief = "0.2.1"
 ordered-float = "2.0.0"
 
-# minecraft_render = { git = "https://github.com/ScanMountGoat/smash_minecraft_renders", rev = "1cbdd2b", optional = true }
-minecraft_render = { path = "../smash_minecraft_renders", optional = true }
+minecraft_render = { git = "https://github.com/ScanMountGoat/smash_minecraft_renders", rev = "0dc9332239725709f640d699c2a6ab829ef0f2d7", optional = true }
 
 [patch.crates-io]
 ring = { git = "https://github.com/skyline-rs/ring", branch = "0.16.20" }

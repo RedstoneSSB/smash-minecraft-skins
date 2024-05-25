@@ -229,8 +229,12 @@ fn css_fighter_selected(ctx: &InlineCtx) {
             };
              
             color_correct(&mut skin_data);
-
-            *render = Some(minecraft_render::create_render_of(&convert_to_modern_skin(&skin_data), slot % 2 != 0));
+            let render_func = if slot % 2 != 0 {
+                minecraft_render::create_render_slim
+            } else {
+                minecraft_render::create_render
+            };
+            *render = Some(render_func(&convert_to_modern_skin(&skin_data)));
         }
     }
 }
