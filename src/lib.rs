@@ -55,6 +55,18 @@ static SELECTED_SKINS: [Mutex<Option<PathBuf>>; 8] = [
     parking_lot::const_mutex(None),
 ];
 
+// None means not a custom skin
+static IS_SLIM: [Mutex<Option<bool>>; 8] = [
+    parking_lot::const_mutex(None),
+    parking_lot::const_mutex(None),
+    parking_lot::const_mutex(None),
+    parking_lot::const_mutex(None),
+    parking_lot::const_mutex(None),
+    parking_lot::const_mutex(None),
+    parking_lot::const_mutex(None),
+    parking_lot::const_mutex(None),
+];
+
 static RENDERS: [Mutex<Option<image::RgbaImage>>; 8] = [
     parking_lot::const_mutex(None),
     parking_lot::const_mutex(None),
@@ -85,6 +97,8 @@ const MAX_WIDTH: usize = 1024;
 const MAX_DATA_SIZE: usize = MAX_HEIGHT * MAX_WIDTH * 4;
 const MAX_FILE_SIZE: usize = MAX_DATA_SIZE + 0xb0;
 
+
+
 #[arc_callback]
 fn steve_callback(hash: u64, data: &mut [u8]) -> Option<usize> {
     if let Some(slot) = STEVE_NUTEXB_FILES.iter().position(|&x| x == hash) {
@@ -96,26 +110,7 @@ fn steve_callback(hash: u64, data: &mut [u8]) -> Option<usize> {
         let skin_data = if let Some(path) = skin_path {
             image::load_from_memory(&fs::read(path).unwrap()).unwrap()
         } else {
-            // load skin for arcrop, temp fix, TODO: change back to "return false" after arcrop works
-            let data = fs::read(
-                Path::new("sd:/ultimate/mods/minecraft_2_layer")
-                    .join(STEVE_NUTEXB_FILES_STR[slot])
-            ).ok()?;
-            
-            use std::io::Write;
-
-            let real_size = data.len();
-
-            writer.write_all(&data).unwrap();
-            let data_out = writer.into_inner();
-            if real_size != MAX_FILE_SIZE {
-                let start_of_header = real_size - 0xb0;
-
-                let (from, to) = data_out.split_at_mut(MAX_DATA_SIZE);
-                to.copy_from_slice(&from[start_of_header..real_size]);
-            }
-
-            return Some(MAX_FILE_SIZE);
+            return None;
         };
 
         let mut skin_data = skin_data.to_rgba8();
@@ -143,6 +138,31 @@ fn steve_callback(hash: u64, data: &mut [u8]) -> Option<usize> {
         }
 
         Some(MAX_FILE_SIZE)
+    } else {
+        None
+    }
+}
+
+#[arc_callback]
+fn steve_model_callback(hash: u64, data: &mut [u8]) -> Option<usize> {
+    if let Some(slot) = STEVE_NUMSHB_FILES.iter().position(|&x| x == hash) {
+        let is_slim = IS_SLIM[slot].lock();
+        
+        match *is_slim {
+            None => None,
+            Some(slim) => {
+                // fuck you, that's why
+                let out: &'static [u8; MAX_MODEL_SIZE] = if slim {
+                    include_bytes!("alex.numshb")
+                } else {
+                    include_bytes!("steve.numshb")
+                };
+
+                data.copy_from_slice(out);
+                return Some(MAX_FILE_SIZE);
+
+            }
+        }
     } else {
         None
     }
@@ -217,28 +237,51 @@ fn css_fighter_selected(ctx: &InlineCtx) {
         *SELECTED_SKINS[slot].lock() = path.clone();
 
         let mut render = RENDERS[slot].lock();
-
+        let mut is_slim = IS_SLIM[slot].lock();
+        let skin_data = if let Some(path) = path {
+            image::load_from_memory(&fs::read(path).unwrap())
+                .unwrap()
+                .into_rgba8()
+        } else {
+            *render = None;
+            *is_slim = None;
+            return
+        };
+        let mut skin_data = convert_to_modern_skin(&skin_data);
+        let likely_slim = is_likely_slim(&skin_data);
+        if likely_slim {
+            *is_slim = Some(true)
+        } else {
+            *is_slim = Some(false)
+        }
         #[cfg(feature = "renders")] {
-            let mut skin_data = if let Some(path) = path {
-                image::load_from_memory(&fs::read(path).unwrap())
-                    .unwrap()
-                    .into_rgba8()
-            } else {
-                *render = None;
-                return
-            };
-             
             color_correct(&mut skin_data);
-            let render_func = if slot % 2 != 0 {
+            let render_func = if likely_slim {
                 minecraft_render::create_render_slim
             } else {
                 minecraft_render::create_render
             };
-            *render = Some(render_func(&convert_to_modern_skin(&skin_data)));
+            *render = Some(render_func(&skin_data));
         }
     }
 }
 
+const SLIM_CHECK_X: f32 = 50f32 / 64f32;
+const SLIM_CHECK_Y: f32 = 19f32 / 64f32;
+fn is_likely_slim(skin_texture: &image::RgbaImage) -> bool {
+    let check_x = (SLIM_CHECK_X * skin_texture.width() as f32) as u32;
+    let check_y = (SLIM_CHECK_Y * skin_texture.height() as f32) as u32;
+
+    let pixel = skin_texture.get_pixel(check_x, check_y);
+
+    if pixel.0[4] == 0 {
+        true
+    } else {
+        false
+    }
+}
+
+const MAX_MODEL_SIZE: usize = 504_960;
 const MAX_STOCK_ICON_SIZE: usize = 0x9c68;
 const MAX_CHARA_3_SIZE: usize = 0x727068;
 const MAX_CHARA_4_SIZE: usize = 0x2d068;
@@ -371,6 +414,10 @@ pub fn main() {
 
     for &hash in &STEVE_STOCK_ICONS {
         steve_stock_callback::install(hash, MAX_STOCK_ICON_SIZE);
+    }
+
+    for &hash in &STEVE_NUMSHB_FILES {
+        steve_model_callback::install(hash, MAX_MODEL_SIZE);
     }
 
     #[cfg(feature = "renders")] {

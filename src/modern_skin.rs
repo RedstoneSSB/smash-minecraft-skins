@@ -24,12 +24,16 @@ fn copy_rotated_right_flipped(image: &mut image::RgbaImage, from_pos: (u32, u32)
 }
 
 pub fn convert_to_modern_skin(skin_data: &image::RgbaImage) -> image::RgbaImage {
+
     let scale = skin_data.width() / 64;
 
     let mut new_skin = image::RgbaImage::new(64 * scale, 64 * scale);
 
     new_skin.copy_from(skin_data, 0, 0).unwrap();
 
+    if skin_data.width() == skin_data.height() {
+        return new_skin;
+    }
     let arm_size: (u32, u32) = (4 * scale, 4 * scale);
 
     // copy and flip the top of leg
