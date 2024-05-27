@@ -159,7 +159,7 @@ fn steve_model_callback(hash: u64, data: &mut [u8]) -> Option<usize> {
                 };
 
                 data.copy_from_slice(out);
-                return Some(MAX_FILE_SIZE);
+                return Some(MAX_MODEL_SIZE);
 
             }
         }
