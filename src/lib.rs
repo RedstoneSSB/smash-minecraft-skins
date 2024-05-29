@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use parking_lot::Mutex;
-use image::DynamicImage;
+use image::{DynamicImage, RgbaImage};
 
 use arcropolis_api::{arc_callback, load_original_file};
 
@@ -145,22 +145,55 @@ fn steve_callback(hash: u64, data: &mut [u8]) -> Option<usize> {
 
 #[arc_callback]
 fn steve_model_callback(hash: u64, data: &mut [u8]) -> Option<usize> {
-    if let Some(slot) = STEVE_NUMSHB_FILES.iter().position(|&x| x == hash) {
+    forward_if_slim(&STEVE_NUMSHB_FILES, hash, data)
+}
+#[arc_callback]
+fn steve_nusrcmdlb_callback(hash: u64, data: &mut [u8]) -> Option<usize> {
+    forward_if_slim(&STEVE_NUSRCMDLB_FILES, hash, data)
+}
+
+#[arc_callback]
+fn steve_numdlb_callback(hash: u64, data: &mut [u8]) -> Option<usize> {
+    forward_if_slim(&STEVE_MODL_FILES, hash, data)
+}
+
+#[arc_callback]
+fn steve_mat_callback(hash: u64, data: &mut [u8]) -> Option<usize> {
+    forward_if_slim(&STEVE_NUMATB_FILES, hash, data)
+}
+
+#[arc_callback]
+fn steve_light_mat_callback(hash: u64, data: &mut [u8]) -> Option<usize> {
+    forward_if_slim(&STEVE_LIGHT_MODEL_FILES, hash, data)
+}
+
+#[arc_callback]
+fn steve_dark_mat_callback(hash: u64, data: &mut [u8]) -> Option<usize> {
+    forward_if_slim(&STEVE_DARK_MODEL_FILES, hash, data)
+}
+
+#[arc_callback]
+fn steve_metamon_mat_callback(hash: u64, data: &mut [u8]) -> Option<usize> {
+    forward_if_slim(&STEVE_METAMON_MAT_FILES, hash, data)
+}
+
+#[arc_callback]
+fn steve_mesh_ext_callback(hash: u64, data: &mut [u8]) -> Option<usize> {
+    forward_if_slim(&STEVE_MESHEXT_FILES, hash, data)
+}
+
+#[inline]
+fn forward_if_slim(hashes: &'static [u64], hash: u64, data: &mut [u8]) -> Option<usize> {
+    if let Some(slot) = hashes.iter().position(|&x| x == hash) {
         let is_slim = IS_SLIM[slot].lock();
-        
         match *is_slim {
             None => None,
             Some(slim) => {
-                // fuck you, that's why
-                let out: &'static [u8; MAX_MODEL_SIZE] = if slim {
-                    include_bytes!("alex.numshb")
+                if slim {
+                    load_original_file(hashes[1], data)
                 } else {
-                    include_bytes!("steve.numshb")
-                };
-
-                data.copy_from_slice(out);
-                return Some(MAX_MODEL_SIZE);
-
+                    load_original_file(hashes[0], data)
+                }
             }
         }
     } else {
@@ -168,6 +201,24 @@ fn steve_model_callback(hash: u64, data: &mut [u8]) -> Option<usize> {
     }
 }
 
+#[arc_callback]
+fn steve_emi_callback(hash: u64, data: &mut [u8]) -> Option<usize> {
+    if let Some(slot) = STEVE_EMI_FILES.iter().position(|&x| x == hash) {
+       let is_slim = IS_SLIM[slot].lock();
+       match *is_slim {
+            None => None,
+            Some(_) => {
+                let mut writer = std::io::Cursor::new(data);
+                let img = RgbaImage::from_pixel(64, 64, image::Rgba([0, 0, 0, 255]));
+                nutexb::writer::write_nutexb("no_emission", &DynamicImage::ImageRgba8(img), &mut writer).unwrap();
+            
+                Some(writer.position() as usize)
+            }
+       }
+    } else {
+        None
+    }
+}
 #[arc_callback]
 fn steve_stock_callback(hash: u64, data: &mut [u8]) -> Option<usize> {
     if let Some(slot) = STEVE_STOCK_ICONS.iter().position(|&x| x == hash) {
@@ -223,6 +274,7 @@ pub struct FighterInfo {
     fighter_slot: u8,
 }
 
+
 #[skyline::hook(offset = FIGHTER_SELECTED_OFFSET, inline)]
 fn css_fighter_selected(ctx: &InlineCtx) {
     let infos = unsafe { &*(ctx.registers[0].bindgen_union_field as *const FighterInfo) };
@@ -238,7 +290,7 @@ fn css_fighter_selected(ctx: &InlineCtx) {
 
         let mut render = RENDERS[slot].lock();
         let mut is_slim = IS_SLIM[slot].lock();
-        let skin_data = if let Some(path) = path {
+        let mut skin_data = if let Some(path) = path {
             image::load_from_memory(&fs::read(path).unwrap())
                 .unwrap()
                 .into_rgba8()
@@ -247,7 +299,9 @@ fn css_fighter_selected(ctx: &InlineCtx) {
             *is_slim = None;
             return
         };
-        let mut skin_data = convert_to_modern_skin(&skin_data);
+        if skin_data.width() != skin_data.height() {
+            skin_data = convert_to_modern_skin(&skin_data);
+        }
         let likely_slim = is_likely_slim(&skin_data);
         if likely_slim {
             *is_slim = Some(true)
@@ -265,16 +319,15 @@ fn css_fighter_selected(ctx: &InlineCtx) {
         }
     }
 }
-
-const SLIM_CHECK_X: f32 = 50f32 / 64f32;
-const SLIM_CHECK_Y: f32 = 19f32 / 64f32;
+const SLIM_CHECK_X: u32 = 50;
+const SLIM_CHECK_Y: u32 = 19;
 fn is_likely_slim(skin_texture: &image::RgbaImage) -> bool {
-    let check_x = (SLIM_CHECK_X * skin_texture.width() as f32) as u32;
-    let check_y = (SLIM_CHECK_Y * skin_texture.height() as f32) as u32;
-
+    let scale = skin_texture.width() / 64; 
+    let check_x = SLIM_CHECK_X * scale;
+    let check_y = SLIM_CHECK_Y * scale;
     let pixel = skin_texture.get_pixel(check_x, check_y);
 
-    if pixel.0[4] == 0 {
+    if pixel.0[3] == 0 {
         true
     } else {
         false
@@ -282,10 +335,17 @@ fn is_likely_slim(skin_texture: &image::RgbaImage) -> bool {
 }
 
 const MAX_MODEL_SIZE: usize = 504_960;
+const MAX_MAT_SIZE: usize = 24_060;
+const MAX_LIGHT_MODEL_SIZE: usize = 20_116;
+const MAX_DARK_MODEL_SIZE: usize = 20_116;
+const MAX_METAMON_MAT_SIZE: usize = 14_652;
+const MAX_EMI_SIZE: usize = 23_728;
+const MAX_MESHEXT_SIZE: usize = 4_736;
 const MAX_STOCK_ICON_SIZE: usize = 0x9c68;
 const MAX_CHARA_3_SIZE: usize = 0x727068;
 const MAX_CHARA_4_SIZE: usize = 0x2d068;
 const MAX_CHARA_6_SIZE: usize = 0x81068;
+const MAX_MODL_SIZE: usize = 4944;
 
 static CHARA_3_MASK: &[u8] = include_bytes!("chara_3_mask.png");
 static CHARA_4_MASK: &[u8] = include_bytes!("chara_4_mask.png");
@@ -418,6 +478,36 @@ pub fn main() {
 
     for &hash in &STEVE_NUMSHB_FILES {
         steve_model_callback::install(hash, MAX_MODEL_SIZE);
+    }
+
+    for &hash in &STEVE_NUMATB_FILES {
+        steve_mat_callback::install(hash, MAX_MAT_SIZE);
+    }
+
+    for &hash in &STEVE_LIGHT_MODEL_FILES {
+        steve_light_mat_callback::install(hash, MAX_LIGHT_MODEL_SIZE);
+    }
+    
+    for &hash in &STEVE_DARK_MODEL_FILES {
+        steve_dark_mat_callback::install(hash, MAX_DARK_MODEL_SIZE);
+    }
+
+    for &hash in &STEVE_METAMON_MAT_FILES {
+        steve_metamon_mat_callback::install(hash, MAX_METAMON_MAT_SIZE);
+    }
+
+    for &hash in &STEVE_EMI_FILES {
+        steve_emi_callback::install(hash, MAX_EMI_SIZE);
+    }
+    for &hash in &STEVE_MESHEXT_FILES {
+        steve_mesh_ext_callback::install(hash, MAX_MESHEXT_SIZE);
+    }
+
+    for &hash in &STEVE_NUSRCMDLB_FILES {
+        steve_nusrcmdlb_callback::install(hash, MAX_MODL_SIZE);
+    }
+    for &hash in &STEVE_MODL_FILES {
+        steve_numdlb_callback::install(hash, MAX_MODL_SIZE);
     }
 
     #[cfg(feature = "renders")] {
