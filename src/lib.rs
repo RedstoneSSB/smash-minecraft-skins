@@ -35,8 +35,8 @@ lazy_static::lazy_static! {
     );
 }
 
-// Default 13.0.2 offset
-static mut FIGHTER_SELECTED_OFFSET: usize = 0x66e140;
+// Default 13.0.3 offset
+static mut FIGHTER_SELECTED_OFFSET: usize = 0x66e160;
 
 static FIGHTER_SELECTED_SEARCH_CODE: &[u8] = &[
     0xb0, 0xde, 0x45, 0x94,
@@ -458,7 +458,7 @@ fn search_offsets() {
         if let Some(offset) = find_subsequence(text, FIGHTER_SELECTED_SEARCH_CODE) {
             FIGHTER_SELECTED_OFFSET = offset;
         } else {
-            println!("Error: no offset found for 'css_fighter_selected'. Defaulting to 13.0.2 offset. This likely won't work.");
+            println!("Error: no offset found for 'css_fighter_selected'. Defaulting to 13.0.3 offset. This likely won't work.");
         }
     }
 }
