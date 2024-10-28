@@ -1,5 +1,5 @@
 [package]
-name = "minecraft_skins"
+name = "smash-minecraft-skins"
 version = "1.2.5"
 authors = ["jam1garner <jam1.mcleod@hotmail.com>", "RedstoneSSB <github@redstone.pw>"]
 edition = "2018"
