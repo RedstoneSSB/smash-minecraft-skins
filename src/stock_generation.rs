@@ -21,7 +21,7 @@ pub fn gen_stock_image(img: &image::RgbaImage) -> image::RgbaImage {
     let mut face = resize(&face, 40, 40, Nearest);
 
     let mut outline = image::load_from_memory_with_format(
-        include_bytes!("stock_outline.png"),
+        include_bytes!("assets/stock_outline.png"),
         ImageFormat::Png
     ).unwrap().into_rgba8();
 

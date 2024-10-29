@@ -347,9 +347,9 @@ const MAX_CHARA_4_SIZE: usize = 0x2d068;
 const MAX_CHARA_6_SIZE: usize = 0x81068;
 const MAX_MODL_SIZE: usize = 4944;
 
-static CHARA_3_MASK: &[u8] = include_bytes!("chara_3_mask.png");
-static CHARA_4_MASK: &[u8] = include_bytes!("chara_4_mask.png");
-static CHARA_6_MASK: &[u8] = include_bytes!("chara_6_mask.png");
+static CHARA_3_MASK: &[u8] = include_bytes!("assets/chara_3_mask.png");
+static CHARA_4_MASK: &[u8] = include_bytes!("assets/chara_4_mask.png");
+static CHARA_6_MASK: &[u8] = include_bytes!("assets/chara_6_mask.png");
 
 use parking_lot::{MutexGuard, MappedMutexGuard};
 
