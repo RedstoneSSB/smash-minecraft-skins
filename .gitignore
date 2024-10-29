@@ -2,5 +2,6 @@
 **/target
 **/result
 *.zip
-smash-minecraft-skins/
+.direnv
+smash-minecraft-skins
 
