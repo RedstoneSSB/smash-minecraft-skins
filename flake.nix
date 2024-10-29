@@ -8,9 +8,16 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     nix-std.url = "github:chessai/nix-std";
+    nix-github-actions = {
+      url = "github:nix-community/nix-github-actions";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
-  outputs = { self, flake-utils, nix-skyline-rs, nixpkgs, nix-std, ... }@inputs: 
+  outputs = { self, flake-utils, nix-github-actions, nix-skyline-rs, nixpkgs, nix-std, ... }@inputs: 
   {
+    githubActions = nix-github-actions.lib.mkGithubMatrix { 
+      checks = nixpkgs.lib.getAttrs ["x86_64-linux" "x86_64-darwin"] self.checks;
+    };
     lib = {
       nixpkgs = nixpkgs.lib;
       std = inputs.nix-std.lib;
@@ -82,7 +89,8 @@
 
     # FIXME: No such package anymore
     checks = {
-      clippy = self.packages.${system}.smash-minecraft-skins.override { mode = "clippy"; };
+      inherit (self.packages.${system}) nro arcropolis-dir arcropolis-zip;
+      # clippy = self.packages.${system}.smash-minecraft-skins.override { mode = "clippy"; };
     };
   }));
 }
